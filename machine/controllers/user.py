@@ -1,6 +1,6 @@
-from app.models import User
-from app.repositories import UserRepository
 from core.controller import BaseController
+from machine.models import User
+from machine.repositories import UserRepository
 
 
 class UserController(BaseController[User]):

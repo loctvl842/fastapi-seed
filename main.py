@@ -1,14 +1,14 @@
 import uvicorn
 
-from app.server import app
+from machine.server import machine
 
 
 def run():
     uvicorn.run(
-        app="app.server:app",
-        host=app.settings.APP_HOST,
-        port=app.settings.APP_PORT,
-        reload=app.settings.DEBUG,
+        app="machine.server:machine",
+        host=machine.settings.APP_HOST,
+        port=machine.settings.APP_PORT,
+        reload=machine.settings.DEBUG,
     )
 
 

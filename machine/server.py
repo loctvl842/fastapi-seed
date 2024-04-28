@@ -5,12 +5,12 @@ from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import router
 from core.cache import Cache, DefaultKeyMaker, RedisBackend
 from core.exceptions import CustomException
 from core.fastapi.middlewares import SQLAlchemyMiddleware
 from core.response import Error
 from core.settings import settings
+from machine.api import router
 
 
 def init_routers(app_: FastAPI) -> None:
@@ -51,7 +51,7 @@ def make_middleware() -> list[Middleware]:
     return middleware
 
 
-def create_app() -> FastAPI:
+def create_machine() -> FastAPI:
     app_ = FastAPI(
         title="Trading Logic",
         description="Trading Logic API",
@@ -68,4 +68,4 @@ def create_app() -> FastAPI:
     return app_
 
 
-app = create_app()
+machine = create_machine()

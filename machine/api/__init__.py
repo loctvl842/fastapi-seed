@@ -2,9 +2,9 @@ import toml
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
-from app.api.ping import router as ping_router
-from app.api.v1 import router as router_v1
-from app.api.v2 import router as router_v2
+from machine.api.ping import router as ping_router
+from machine.api.v1 import router as router_v1
+from machine.api.v2 import router as router_v2
 
 router = APIRouter()
 router.include_router(ping_router)

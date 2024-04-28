@@ -2,11 +2,11 @@ from functools import partial
 
 from fastapi import Depends
 
-from app.controllers import UserController
-from app.models import User
-from app.repositories import UserRepository
 from core.db import get_session
 from core.utils import singleton
+from machine.controllers import UserController
+from machine.models import User
+from machine.repositories import UserRepository
 
 
 @singleton

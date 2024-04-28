@@ -2,11 +2,11 @@ from typing import List
 
 from fastapi import APIRouter, Depends
 
-from app.controllers import UserController
-from app.models import User
-from app.providers import InternalProvider
-from app.schemas.requests.user import UserRequest
-from app.schemas.responses.user import UserResponse
+from machine.controllers import UserController
+from machine.models import User
+from machine.providers import InternalProvider
+from machine.schemas.requests.user import UserRequest
+from machine.schemas.responses.user import UserResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
 
