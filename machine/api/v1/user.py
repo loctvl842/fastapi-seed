@@ -22,7 +22,7 @@ async def create(
     Args:
     - **name**: User name
     """
-    return await user_controller.create(body)
+    return await user_controller.create(body.model_dump())
 
 
 @router.get("/", response_model=List[UserResponse])

@@ -16,7 +16,7 @@ async def create(
     body: UserRequest,
     user_controller: UserController = Depends(InternalProvider().get_user_controller),
 ):
-    return await user_controller.create(body)
+    return await user_controller.create(body.model_dump())
 
 
 @router.get("/", response_model=List[UserResponse])
