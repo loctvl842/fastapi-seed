@@ -1,11 +1,33 @@
-[project]
+[tool.poetry]
 name = "fastapi-seed"
-version = "0.0.1"
+version = "0.1.0"
 description = "FastAPI Boilerplate"
 authors = ["loctvl842 <loclepnvx@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+ruff = "^0.4.4"
 
 [tool.ruff]
 line-length = 120
 
 [tool.black]
 line-length = 120
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111.0"
+pydantic-settings = "^2.2.1"
+toml = "^0.10.2"
+loguru = "^0.7.2"
+sqlalchemy = "^2.0.30"
+alembic = "^1.13.1"
+asyncpg = "^0.29.0"
+redis = "^5.0.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -47,7 +47,16 @@ start: ## Start the server
 	$(eval include .env)
 	$(eval export $(sh sed 's/=.*//' .env))
 
-	python main.py
+	poetry run python main.py
+
+.PHONY: cli
+cli: ## Start the CLI
+	$(eval include .env)
+	$(eval export $(shell sed 's/=.*//' .env))
+	poetry run python cli.py $(filter-out $@,$(MAKECMDGOALS))
+
+%:
+	@true
 
 # Database commands
 
@@ -56,14 +65,14 @@ migrate: ## Run the migrations
 	$(eval include .env)
 	$(eval export $(sh sed 's/=.*//' .env))
 
-	alembic upgrade head
+	poetry run alembic upgrade head
 
 .PHONY: rollback
 rollback: ## Rollback the migrations
 	$(eval include .env)
 	$(eval export $(sh sed 's/=.*//' .env))
 
-	alembic downgrade -1
+	poetry run alembic downgrade -1
 
 .PHONY: generate-migration
 generate-migration: ## Generate a new migration
@@ -72,20 +81,22 @@ generate-migration: ## Generate a new migration
 
 	@printf "\033[33mEnter migration message: \033[0m"
 	@read -r message; \
-	alembic revision --autogenerate -m "$$message"
+	poetry run alembic revision --autogenerate -m "$$message"
 	@make lint migration
 
 # Code quality commands
 
 .PHONY: check
-check: check-format lint
+check: ## Check and lint the code
+	@make check-format
+	@make lint
 
 .PHONY: check-format
 check-format: ## Check format
-	-black ./ --check
-	-ruff check --select I --select W --select E
+	-poetry run black ./ --check
+	-poetry run ruff check --select I --select W --select E
 
 .PHONY: lint
 lint: ## Lint the code
-	black ./
-	ruff check --fix --select I --select W --select E
+	poetry run black ./
+	poetry run ruff check --fix --select I --select W --select E

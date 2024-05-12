@@ -13,7 +13,7 @@ class CoreSettings(BaseSettings):
 
 
 class DatabaseSettings(BaseSettings):
-    SQLALCHEMY_DATABASE_URI: str = "postgresql+asyncpg://postgres:thangcho@127.0.0.1:5432/fastapi-seed"
+    SQLALCHEMY_DATABASE_URI: str = "postgresql+asyncpg://postgres:thangcho@127.0.0.1:5432/fastapi_seed"
     SQLALCHEMY_ECHO: bool = False
 
 

@@ -10,8 +10,6 @@ services:
       - ENV=development
       - SQLALCHEMY_DATABASE_URI=postgresql+asyncpg://postgres:thangcho@localhost:5432/fastapi-seed
     network_mode: "host"
-    volumes:
-      - ../:/app
 
   postgres:
     image: postgres
