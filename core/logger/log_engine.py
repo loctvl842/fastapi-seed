@@ -1,17 +1,22 @@
 import inspect
+import logging
 import sys
 from typing import Any, List
 
 from loguru import logger
 
+import core.utils as ut
 from core.settings import settings
 
 
+@ut.singleton
 class LogEngine:
     def __init__(self) -> None:
         self._logger = logger
         self.setup()
         self.log_level = settings.LOG_LEVEL
+        if ut.has("sqlalchemy"):
+            self._configure_sqlalchemy()
 
     def setup(self):
         log_format = (
@@ -69,8 +74,18 @@ class LogEngine:
 
         return caller_info
 
+    def _get_level(self, level: str) -> int:
+        level_map = {
+            "DEBUG": 0,
+            "INFO": 1,
+            "WARN": 2,
+            "ERROR": 3,
+            "FATAL": 4,
+        }
+        return level_map.get(str(level.upper()), 1)
+
     def log(self, level="DEBUG", *items: List[Any]) -> None:
-        if not settings.DEBUG:
+        if not settings.DEBUG or self._get_level(level) < self._get_level(self.log_level):
             return
         self._logger.remove()
         caller_info = self.get_caller_info()
@@ -111,3 +126,39 @@ class LogEngine:
 
     def exception(self, *items: List[Any]) -> None:
         self.log("EXCEPTION", *items)
+
+    def _configure_sqlalchemy(self):
+        from sqlalchemy import Engine, event
+
+        # Configure SQLAlchemy to use custom logger
+        sqlalchemy_logger = logging.getLogger("sqlalchemy.engine")
+        sqlalchemy_logger.setLevel(logging.INFO)
+
+        class SQLAlchemyLogHandler(logging.Handler):
+            def __init__(self, engine_instance):
+                super().__init__()
+                self.engine_instance = engine_instance
+
+            def emit(self, record):
+                log_entry = self.format(record)
+                self.engine_instance.debug(log_entry)
+
+        handler = SQLAlchemyLogHandler(self)
+        sqlalchemy_logger.addHandler(handler)
+
+        @event.listens_for(Engine, "before_cursor_execute")
+        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            """
+            listen for the 'before_cursor_execute' event
+
+            Reference: https://docs.sqlalchemy.org/en/20/core/events.html#sqlalchemy.events.ConnectionEvents.before_cursor_execute
+            """
+            self.info("Executing SQL:\n", "```sql\n", f"{statement}", "\n```\nParameters:\n", f"{parameters}")
+
+        @event.listens_for(Engine, "after_cursor_execute")
+        def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            """
+            listen for the 'after_cursor_execute' event
+
+            Reference: https://docs.sqlalchemy.org/en/20/core/events.html#sqlalchemy.events.ConnectionEvents.before_cursor_execute
+            """

@@ -3,8 +3,6 @@ import time
 from functools import wraps
 from typing import Awaitable, Callable, TypeVar, Union
 
-from core.logger import syslog
-
 T = TypeVar("T")
 
 
@@ -45,6 +43,8 @@ def stopwatch(
                 result = fn(*args, **kwargs)
             end = time.time_ns()
             elapsed_time = (end - start) / 1e6
+            from core.logger import syslog
+
             syslog.info(f"Elapsed time for {''.join([prefix + ':' if prefix else '', fn.__name__])}: {elapsed_time} ms")
             return result
 
