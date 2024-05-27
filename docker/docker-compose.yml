@@ -8,7 +8,7 @@ services:
       dockerfile: docker/Dockerfile
     environment:
       - ENV=development
-      - SQLALCHEMY_DATABASE_URI=postgresql+asyncpg://postgres:thangcho@localhost:5432/fastapi-seed
+      - SQLALCHEMY_DATABASE_URI=postgresql+asyncpg://postgres:thangcho@localhost:5432/fastapi_seed
     network_mode: "host"
 
   postgres:
