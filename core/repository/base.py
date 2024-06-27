@@ -1,10 +1,12 @@
 from functools import reduce
-from typing import Any, Generic, Sequence, Type, TypeVar
+from typing import Any, Dict, Generic, List, Optional, Sequence, Type, TypeVar
 
-from sqlalchemy import Select, delete, func, select
+from sqlalchemy import Column, Select, delete, func, inspect, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import Base
+from core.exceptions import SystemException
 
 from .enum import SynchronizeSessionEnum
 
@@ -18,11 +20,12 @@ class BaseRepository(Generic[ModelType]):
 
     def _query(
         self,
-        skip: int = None,
-        limit: int = None,
+        skip: Optional[int] = None,
+        limit: Optional[int] = None,
+        fields: Optional[List[Column[Any]]] = None,
         join_: set[str] | None = None,
         order_: dict | None = None,
-        where_: list = None,
+        where_: Optional[List] = None,
     ) -> Select:
         """
         Returns a callable that can be used to query the model.
@@ -31,7 +34,10 @@ class BaseRepository(Generic[ModelType]):
         :param order_: The order of the results. (e.g desc, asc)
         :return: A callable that can be used to query the model.
         """
-        query = select(self.model_class)
+        if fields:
+            query = select(*fields)
+        else:
+            query = select(self.model_class)
         if where_:
             for condition in where_:
                 query = query.where(condition)
@@ -82,10 +88,28 @@ class BaseRepository(Generic[ModelType]):
         if order_:
             if order_.get("asc", None) is not None:
                 for order in order_["asc"]:
-                    query = query.order_by(getattr(self.model_class, order).asc())
+                    if isinstance(order, str):
+                        query = query.order_by(getattr(self.model_class, order).asc())
+                    elif isinstance(order, dict):
+                        model_class = order.get("model_class", self.model_class)
+                        field = order.get("field", None)
+                        if field is None:
+                            raise SystemException("Missing field in order")
+                        query = query.order_by(getattr(model_class, field).asc())
+                    else:
+                        raise SystemException("Order params must be string or dict")
             else:
                 for order in order_["desc"]:
-                    query = query.order_by(getattr(self.model_class, order).desc())
+                    if isinstance(order, str):
+                        query = query.order_by(getattr(self.model_class, order).desc())
+                    elif isinstance(order, dict):
+                        model_class = order.get("model_class", self.model_class)
+                        field = order.get("field", None)
+                        if field is None:
+                            raise SystemException("Missing field in order")
+                        query = query.order_by(getattr(model_class, field).desc())
+                    else:
+                        raise SystemException("Order params must be string or dict")
 
         return query
 
@@ -95,8 +119,9 @@ class BaseRepository(Generic[ModelType]):
 
         :param query: The query to execute.
         """
-        query = await self.session.scalars(select(func.count()).select_from(query))
-        return query.one()
+        count_query = select(func.count()).select_from(query.subquery())
+        result = await self.session.execute(count_query)
+        return result.scalar_one()
 
     async def _all(self, query: Select) -> list[ModelType]:
         """
@@ -108,8 +133,8 @@ class BaseRepository(Generic[ModelType]):
         response = await self.session.scalars(query)
         return list(response.all())
 
-    async def _all_unique(self, query: Select) -> list[ModelType]:
-        result = self.session.execute(query)
+    async def _all_unique(self, query: Select) -> Sequence[ModelType]:
+        result = await self.session.execute(query)
         return result.unique().scalars().all()
 
     async def _get_by(self, query: Select, field: str, value: str) -> Select:
@@ -123,7 +148,7 @@ class BaseRepository(Generic[ModelType]):
         """
         return query.where(getattr(self.model_class, field) == value)
 
-    async def create(self, attributes: dict[str, Any] = None) -> ModelType:
+    async def create(self, attributes: Optional[dict[str, Any]] = None, commit=False) -> ModelType:
         """
         Creates the model instance.
 
@@ -134,9 +159,62 @@ class BaseRepository(Generic[ModelType]):
             attributes = {}
         model = self.model_class(**attributes)
         self.session.add(model)
+        if commit:
+            await self.session.commit()
         return model
 
-    async def count(self, where_: list = None) -> int:
+    async def update(self, model_id: Any, attributes: Dict[str, Any], commit=False) -> ModelType:
+        """
+        Updates the model instance.
+
+        :param model_id: The ID of the model instance to update.
+        :param attributes: The attributes to update the model with.
+        :param commit: Whether to commit the changes to the database.
+        :return: The updated model instance.
+        """
+        # Fetch the existing model instance by ID
+        model = await self.session.get(self.model_class, model_id)
+
+        if not model:
+            raise ValueError(f"Model with id {model_id} not found")
+
+        # Update the model instance with the provided attributes
+        for key, value in attributes.items():
+            setattr(model, key, value)
+
+        # Add the model instance to the session (if not already added)
+        self.session.add(model)
+
+        if commit:
+            await self.session.commit()
+
+        return model
+
+    async def create_or_update(self, index_elements: List[str], attributes: Dict[str, Any], commit=False) -> None:
+        """
+        Creates or updates the model instance. Using on_conflict_do_update
+
+        :param model_id: The ID of the model instance to update.
+        :param attributes: The attributes to update the model with.
+        :param commit: Whether to commit the changes to the database.
+        :return: The updated model instance.
+        """
+        mapper = inspect(self.model_class)
+        columns = mapper.columns.keys()
+        if "updated_at" in columns:
+            attributes["updated_at"] = func.now()
+
+        stmt = (
+            insert(self.model_class)
+            .values(**attributes)
+            .on_conflict_do_update(index_elements=index_elements, set_={k: attributes[k] for k in attributes})
+        )
+        await self.session.execute(stmt)
+
+        if commit:
+            await self.session.commit()
+
+    async def count(self, where_: Optional[list] = None) -> int:
         """
         Returns the number of records in the DB.
         :return: The number of records.
@@ -144,17 +222,23 @@ class BaseRepository(Generic[ModelType]):
         query = self._query(where_=where_)
         return await self._count(query)
 
-    async def get_all(self, join_: set[str] | None = None) -> list[ModelType]:
-        query = self._query(join_=join_)
+    async def get_all(
+        self,
+        join_: Optional[set[str]] = None,
+        order_: Optional[dict] = None,
+        where_: Optional[list] = None,
+    ) -> list[ModelType]:
+        query = self._query(join_=join_, order_=order_, where_=where_)
         return await self._all(query)
 
     async def get_many(
         self,
-        skip: int = None,
-        limit: int = None,
-        join_: set[str] | None = None,
-        order_: dict | None = None,
-        where_: list = None,
+        skip: Optional[int] = None,
+        limit: Optional[int] = None,
+        fields: Optional[list[Column[Any]]] = None,
+        join_: Optional[set[str]] = None,
+        order_: Optional[dict] = None,
+        where_: Optional[list] = None,
     ) -> Sequence[ModelType]:
         """
         Returns a list of records based on pagination params.
@@ -165,7 +249,7 @@ class BaseRepository(Generic[ModelType]):
         :return: A list of records.
         """
 
-        query = self._query(skip=skip, limit=limit, join_=join_, order_=order_, where_=where_)
+        query = self._query(skip=skip, limit=limit, fields=fields, join_=join_, order_=order_, where_=where_)
         result = await self.session.scalars(query)
         return result.all()
 
@@ -173,10 +257,10 @@ class BaseRepository(Generic[ModelType]):
         self,
         field: str,
         value: str,
-        skip: int = None,
-        limit: int = None,
-        join_: set[str] | None = None,
-    ) -> list[ModelType]:
+        skip: Optional[int] = None,
+        limit: Optional[int] = None,
+        join_: Optional[set[str]] = None,
+    ) -> Sequence[ModelType]:
         """
         Returns the model instance matching the field.
         :param field: The field to match.
@@ -203,11 +287,12 @@ class BaseRepository(Generic[ModelType]):
 
     async def first_by(
         self,
-        field: str,
-        value: str,
-        skip: int = None,
-        join_: set[str] | None = None,
-        order_: dict | None = None,
+        field: Optional[str] = None,
+        value: str | None = None,
+        where_: Optional[list] = None,
+        skip: Optional[int] = None,
+        join_: Optional[set[str]] = None,
+        order_: Optional[dict] = None,
     ) -> ModelType | None:
         """
         Returns the first model instance matching the field.
@@ -216,8 +301,9 @@ class BaseRepository(Generic[ModelType]):
         :param join_: The joins to make.
         :return: The first model instance matching the field.
         """
-        query = self._query(skip=skip, join_=join_, order_=order_)
-        query = await self._get_by(query, field, value)
+        query = self._query(skip=skip, join_=join_, order_=order_, where_=where_)
+        if field and value:
+            query = await self._get_by(query, field, value)
         query = await self.session.scalars(query)
         return query.first()
 
@@ -229,15 +315,16 @@ class BaseRepository(Generic[ModelType]):
         :return: Whether the model instance exists.
         """
         query = select(self.model_class).where(getattr(self.model_class, field) == value)
-        return bool(await self.session.scalars(query).first())
+        result = await self.session.scalars(query)
+        return bool(result.first())
 
     async def delete(self, model: ModelType) -> None:
         return await self.session.delete(model)
 
     async def delete_many(
         self,
-        where_: list = None,
-        synchronize_session: SynchronizeSessionEnum = False,
+        where_: Optional[list] = None,
+        synchronize_session: Any = SynchronizeSessionEnum.FALSE,
     ):
         query = delete(self.model_class)
         if where_ is not None:
