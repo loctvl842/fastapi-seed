@@ -1,5 +1,4 @@
-from typing import Any, Generic, Type, TypeVar
-from uuid import UUID
+from typing import Any, Generic, Optional, Type, TypeVar
 
 from core.db import Base, Transactional
 from core.exceptions import NotFoundException
@@ -15,14 +14,14 @@ class BaseController(Generic[ModelType]):
         self.model_class = model_class
         self.repository = repository
 
-    async def count(self, where_: list = None) -> int:
+    async def count(self, where_: Optional[list] = None) -> int:
         """
         Returns the number of records in the DB.
         :return: The number of records.
         """
         return await self.repository.count(where_)
 
-    async def get_by_id(self, id_: int | UUID, join_: set[str] | None = None) -> ModelType:
+    async def get_by_id(self, id_: Any, join_: Optional[set[str]] = None) -> ModelType:
         """
         Returns the model instance matching the id.
 
@@ -31,7 +30,7 @@ class BaseController(Generic[ModelType]):
         :return: The model instance.
         """
 
-        db_obj = await self.repository.first_by(field="id", value=id_, join_=join_, unique=True)
+        db_obj = await self.repository.first_by(field="id", value=id_, join_=join_)
         if not db_obj:
             raise NotFoundException(f"{self.model_class.__tablename__.title()} with id: {id} does not exist")
 
@@ -39,11 +38,12 @@ class BaseController(Generic[ModelType]):
 
     async def get_many(
         self,
-        skip: int = None,
-        limit: int = None,
-        join_: set[str] | None = None,
-        order_: dict | None = None,
-        where_: list = None,
+        skip: Optional[int] = None,
+        limit: Optional[int] = None,
+        join_: Optional[set[str]] = None,
+        fields: Optional[list] = None,
+        order_: Optional[dict] = None,
+        where_: Optional[list] = None,
     ):
         """
         Returns a list of records based on pagination params.
@@ -53,7 +53,7 @@ class BaseController(Generic[ModelType]):
         :param join_: The joins to make.
         :return: A list of records.
         """
-        response = await self.repository.get_many(skip, limit, join_, order_, where_)
+        response = await self.repository.get_many(skip, limit, fields, join_, order_, where_)
         return response
 
     async def get_all(self, join_: set[str] | None = None) -> list[ModelType]:
@@ -72,6 +72,14 @@ class BaseController(Generic[ModelType]):
         return create
 
     @Transactional()
+    async def create_many(self, attributes_list: list[dict[str, Any]]) -> list[ModelType]:
+        """
+        Create multiple objects in the DB.
+        """
+        creates = await self.repository.create_many(attributes_list)
+        return creates
+
+    @Transactional()
     async def delete(self, model: ModelType) -> None:
         """
         Deletes the Object from the DB.
@@ -85,7 +93,7 @@ class BaseController(Generic[ModelType]):
     @Transactional()
     async def delete_many(
         self,
-        where_: list = None,
+        where_: Optional[list] = None,
     ):
         """
         Deletes multiple objects from the DB.
@@ -94,15 +102,4 @@ class BaseController(Generic[ModelType]):
         """
         await self.repository.delete_many(where_)
         delete = await self.repository.get_many(where_=where_)
-        return delete
-
-    @Transactional()
-    async def delete_by_id(self, id_: int | UUID) -> None:
-        """
-        Deletes the Object from the DB.
-        :param id_: The id to delete.
-        :return: True if the object was deleted, False otherwise.
-        """
-        await self.repository.delete_many(where_=[self.model_class.id == id_])
-        delete = await self.repository.first_by(field="id", value=id_)
         return delete

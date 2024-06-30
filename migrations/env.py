@@ -41,7 +41,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = app_settings.SQLALCHEMY_DATABASE_URI
+    url = app_settings.SQLALCHEMY_POSTGRES_URI
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -67,7 +67,7 @@ async def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = create_async_engine(app_settings.SQLALCHEMY_DATABASE_URI, poolclass=pool.NullPool)
+    connectable = create_async_engine(app_settings.SQLALCHEMY_POSTGRES_URI, poolclass=pool.NullPool)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

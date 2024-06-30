@@ -13,7 +13,7 @@ class CoreSettings(BaseSettings):
 
 
 class DatabaseSettings(BaseSettings):
-    SQLALCHEMY_DATABASE_URI: str = "postgresql+asyncpg://postgres:thangcho@127.0.0.1:5432/fastapi_seed"
+    SQLALCHEMY_POSTGRES_URI: str = "postgresql+asyncpg://postgres:thangcho@127.0.0.1:5432/fastapi_seed"
     SQLALCHEMY_ECHO: bool = False
 
 
@@ -32,11 +32,10 @@ class ProductionSettings(Settings):
 
 
 def get_settings() -> Settings:
-    source = {"_env_file": ".env", "_env_file_encoding": "utf-8"}
     env = os.getenv("ENV", "development")
     setting_types = {
-        "development": DevelopmentSettings(**source),
-        "production": ProductionSettings(**source),
+        "development": DevelopmentSettings(),
+        "production": ProductionSettings(),
     }
     return setting_types[env]
 

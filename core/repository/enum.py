@@ -1,7 +1,7 @@
-from pydantic import BaseModel
+from enum import Enum
 
 
-class SynchronizeSessionEnum(BaseModel):
-    FETCH: str = "fetch"
-    EVALUATE: str = "evaluate"
-    FALSE: bool = False
+class SynchronizeSessionEnum(Enum):
+    FETCH = "fetch"
+    EVALUATE = "evaluate"
+    FALSE = False

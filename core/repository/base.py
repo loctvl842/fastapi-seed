@@ -1,11 +1,13 @@
 from functools import reduce
-from typing import Any, Dict, Generic, List, Optional, Sequence, Type, TypeVar
+from typing import Any, Dict, Generic, Optional, Sequence, Type, TypeVar
 
-from sqlalchemy import Column, Select, delete, func, inspect, select
+from sqlalchemy import Select, delete, func, inspect, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from core.db import Base
+from core.db.session import EngineType, engines
 from core.exceptions import SystemException
 
 from .enum import SynchronizeSessionEnum
@@ -22,10 +24,10 @@ class BaseRepository(Generic[ModelType]):
         self,
         skip: Optional[int] = None,
         limit: Optional[int] = None,
-        fields: Optional[List[Column[Any]]] = None,
+        fields: Optional[list] = None,
         join_: set[str] | None = None,
         order_: dict | None = None,
-        where_: Optional[List] = None,
+        where_: Optional[list] = None,
     ) -> Select:
         """
         Returns a callable that can be used to query the model.
@@ -51,7 +53,7 @@ class BaseRepository(Generic[ModelType]):
 
         return query
 
-    def _maybe_join(self, query: Select, join_: set[str] | None = None) -> Select:
+    def _maybe_join(self, query: Select, join_: Optional[set[str]] = None) -> Select:
         """
         Returns the query with the given joins.
 
@@ -61,9 +63,6 @@ class BaseRepository(Generic[ModelType]):
         """
         if not join_:
             return query
-
-        if not isinstance(join_, set):
-            raise TypeError("join_ must be a set")
 
         return reduce(self._add_join_to_query, join_, query)
 
@@ -163,6 +162,33 @@ class BaseRepository(Generic[ModelType]):
             await self.session.commit()
         return model
 
+    async def _bulk_insert_mappings(self, attributes_list: list[dict[str, Any]]):
+        """
+        Perform bulk insert mappings using a synchronous session.
+        """
+        async with AsyncSession(engines[EngineType.WRITER]) as session:
+            await session.run_sync(self._synchronous_bulk_insert_mappings, attributes_list)
+
+    def _synchronous_bulk_insert_mappings(self, sync_session: Session, attributes_list: list[dict[str, Any]]):
+        """
+        Perform the synchronous bulk insert mappings.
+        """
+        sync_session.bulk_insert_mappings(inspect(self.model_class), attributes_list)
+        sync_session.commit()
+
+    async def create_many(self, attributes_list: list[dict[str, Any]], commit=False):
+        """
+        Creates multiple model instances.
+
+        :param entities: The list of attributes for the model instances to create.
+        :param commit: Whether to commit the transaction after creation.
+        :return: The list of created model instances.
+        """
+        await self._bulk_insert_mappings(attributes_list)
+        if commit:
+            await self.session.commit()
+        return [self.model_class(**entity) for entity in attributes_list]
+
     async def update(self, model_id: Any, attributes: Dict[str, Any], commit=False) -> ModelType:
         """
         Updates the model instance.
@@ -190,7 +216,7 @@ class BaseRepository(Generic[ModelType]):
 
         return model
 
-    async def create_or_update(self, index_elements: List[str], attributes: Dict[str, Any], commit=False) -> None:
+    async def create_or_update(self, index_elements: list[str], attributes: Dict[str, Any], commit=False) -> None:
         """
         Creates or updates the model instance. Using on_conflict_do_update
 
@@ -211,6 +237,17 @@ class BaseRepository(Generic[ModelType]):
         )
         await self.session.execute(stmt)
 
+        if commit:
+            await self.session.commit()
+
+    async def create_or_update_many(
+        self, index_elements: list[str], attributes_list: list[dict[str, Any]], commit=False
+    ):
+        criteria = [tuple(attributes[key] for key in index_elements) for attributes in attributes_list]
+        await self.delete_many(
+            where_=[tuple_(*[getattr(self.model_class, key) for key in index_elements]).in_(criteria)]
+        )
+        await self.create_many(attributes_list)
         if commit:
             await self.session.commit()
 
@@ -235,7 +272,7 @@ class BaseRepository(Generic[ModelType]):
         self,
         skip: Optional[int] = None,
         limit: Optional[int] = None,
-        fields: Optional[list[Column[Any]]] = None,
+        fields: Optional[list] = None,
         join_: Optional[set[str]] = None,
         order_: Optional[dict] = None,
         where_: Optional[list] = None,
@@ -324,11 +361,11 @@ class BaseRepository(Generic[ModelType]):
     async def delete_many(
         self,
         where_: Optional[list] = None,
-        synchronize_session: Any = SynchronizeSessionEnum.FALSE,
+        synchronize_session: SynchronizeSessionEnum = SynchronizeSessionEnum.FALSE,
     ):
         query = delete(self.model_class)
         if where_ is not None:
             for condition in where_:
                 query = query.where(condition)
-        query = query.execution_options(synchronize_session=synchronize_session)
+        query = query.execution_options(synchronize_session=synchronize_session.value)
         return await self.session.execute(query)

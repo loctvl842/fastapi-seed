@@ -25,6 +25,15 @@ async def create(
     return await user_controller.create(body.model_dump())
 
 
+@router.post("/many")
+async def create_many(
+    body: List[UserRequest],
+    user_controller: UserController = Depends(InternalProvider().get_user_controller),
+):
+    attributes_list = [x.model_dump() for x in body]
+    return await user_controller.create_many(attributes_list)
+
+
 @router.get("/", response_model=List[UserResponse])
 async def list(
     user_controller: UserController = Depends(InternalProvider().get_user_controller),
