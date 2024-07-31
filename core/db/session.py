@@ -3,12 +3,7 @@ from enum import Enum
 from typing import Any, Dict
 from uuid import uuid4
 
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_scoped_session,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, async_scoped_session, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Session
 from sqlalchemy.sql.expression import Delete, Insert, Update
 
@@ -105,6 +100,10 @@ class Base(DeclarativeBase):
         obj_dict = self.__dict__
 
         # Filter out internal attributes and create a new dictionary
-        filtered_obj_dict = {key: value.to_dict() if isinstance(value, Base) else value for key, value in obj_dict.items() if not key.startswith("_")}
+        filtered_obj_dict = {
+            key: value.to_dict() if isinstance(value, Base) else value
+            for key, value in obj_dict.items()
+            if not key.startswith("_")
+        }
 
         return filtered_obj_dict

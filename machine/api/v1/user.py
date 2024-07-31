@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Union
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
+from core.exceptions import BadRequestException
 from machine.controllers import UserController
 from machine.models import User
 from machine.providers import InternalProvider
@@ -11,27 +12,46 @@ from machine.schemas.responses.user import UserResponse
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("/", response_model=UserResponse)
+@router.post("/", response_model=Union[UserResponse, List[UserResponse]])
 async def create(
-    body: UserRequest,
+    body: Union[UserRequest, List[UserRequest]],
+    bulk: bool = Query(False, description="Whether to create a bulk of users"),
     user_controller: UserController = Depends(InternalProvider().get_user_controller),
 ):
     """
-    Create a new user
-
-    Args:
-    - **name**: User name
+    Create user(s)
     """
-    return await user_controller.create(body.model_dump())
+    if bulk:
+        if not isinstance(body, List):
+            raise BadRequestException("Body must be a list when bulk is True")
+        created_users = await user_controller.create_many([user.model_dump() for user in body])
+        return created_users
+    else:
+        if isinstance(body, List):
+            raise BadRequestException("Body must be a single user when bulk is False")
+        created_user = await user_controller.create(body.model_dump())
+        return created_user
 
 
-@router.post("/many")
-async def create_many(
-    body: List[UserRequest],
+@router.post("/upsert")
+async def upsert(
+    body: Union[UserRequest, List[UserRequest]],
+    bulk: bool = Query(False, description="Whether to upsert a bulk of users"),
     user_controller: UserController = Depends(InternalProvider().get_user_controller),
 ):
-    attributes_list = [x.model_dump() for x in body]
-    return await user_controller.create_many(attributes_list)
+    """
+    Upsert user(s)
+    """
+    if bulk:
+        if not isinstance(body, List):
+            raise BadRequestException("Body must be a list when bulk is True")
+        created_users = await user_controller.upsert_many(index_elements=["id"], attributes_list=[user.model_dump() for user in body])
+        return created_users
+    else:
+        if isinstance(body, List):
+            raise BadRequestException("Body must be a single user when bulk is False")
+        created_user = await user_controller.upsert(index_elements=["id"], attributes=body.model_dump())
+        return created_user
 
 
 @router.get("/", response_model=List[UserResponse])

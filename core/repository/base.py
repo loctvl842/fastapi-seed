@@ -1,13 +1,11 @@
 from functools import reduce
 from typing import Any, Dict, Generic, Optional, Sequence, Type, TypeVar
 
-from sqlalchemy import Select, delete, func, inspect, select, tuple_
+from sqlalchemy import Select, delete, func, inspect, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from core.db import Base
-from core.db.session import EngineType, engines
 from core.exceptions import SystemException
 
 from .enum import SynchronizeSessionEnum
@@ -162,21 +160,7 @@ class BaseRepository(Generic[ModelType]):
             await self.session.commit()
         return model
 
-    async def _bulk_insert_mappings(self, attributes_list: list[dict[str, Any]]):
-        """
-        Perform bulk insert mappings using a synchronous session.
-        """
-        async with AsyncSession(engines[EngineType.WRITER]) as session:
-            await session.run_sync(self._synchronous_bulk_insert_mappings, attributes_list)
-
-    def _synchronous_bulk_insert_mappings(self, sync_session: Session, attributes_list: list[dict[str, Any]]):
-        """
-        Perform the synchronous bulk insert mappings.
-        """
-        sync_session.bulk_insert_mappings(inspect(self.model_class), attributes_list)
-        sync_session.commit()
-
-    async def create_many(self, attributes_list: list[dict[str, Any]], commit=False):
+    async def create_many(self, attributes_list: list[dict[str, Any]], commit=False) -> Sequence[ModelType]:
         """
         Creates multiple model instances.
 
@@ -184,10 +168,12 @@ class BaseRepository(Generic[ModelType]):
         :param commit: Whether to commit the transaction after creation.
         :return: The list of created model instances.
         """
-        await self._bulk_insert_mappings(attributes_list)
+        stmt = insert(self.model_class).values(attributes_list).returning(self.model_class)
+        result = await self.session.execute(stmt)
+        created_instances = result.scalars().all()
         if commit:
             await self.session.commit()
-        return [self.model_class(**entity) for entity in attributes_list]
+        return created_instances
 
     async def update(self, model_id: Any, attributes: Dict[str, Any], commit=False) -> ModelType:
         """
@@ -216,7 +202,7 @@ class BaseRepository(Generic[ModelType]):
 
         return model
 
-    async def create_or_update(self, index_elements: list[str], attributes: Dict[str, Any], commit=False) -> None:
+    async def upsert(self, index_elements: list[str], attributes: Dict[str, Any], commit=False) -> Optional[ModelType]:
         """
         Creates or updates the model instance. Using on_conflict_do_update
 
@@ -234,22 +220,44 @@ class BaseRepository(Generic[ModelType]):
             insert(self.model_class)
             .values(**attributes)
             .on_conflict_do_update(index_elements=index_elements, set_={k: attributes[k] for k in attributes})
+            .returning(self.model_class)
         )
-        await self.session.execute(stmt)
+        result = await self.session.execute(stmt)
 
         if commit:
             await self.session.commit()
+        return result.scalars().first()
 
-    async def create_or_update_many(
+    async def upsert_many(
         self, index_elements: list[str], attributes_list: list[dict[str, Any]], commit=False
-    ):
-        criteria = [tuple(attributes[key] for key in index_elements) for attributes in attributes_list]
-        await self.delete_many(
-            where_=[tuple_(*[getattr(self.model_class, key) for key in index_elements]).in_(criteria)]
+    ) -> Sequence[ModelType]:
+        """
+        Upserts multiple model instances.
+
+        :param index_elements: The list of index elements to upsert.
+        :param attributes_list: The list of attributes for the model instances to upsert.
+        :param commit: Whether to commit the changes to the database.
+        :return: The list of upserted model instances.
+        """
+        mapper = inspect(self.model_class)
+        columns = mapper.columns.keys()
+        if "updated_at" in columns:
+            attributes_list = [{**attributes, "updated_at": func.now()} for attributes in attributes_list]
+
+        stmt = (
+            insert(self.model_class)
+            .values(attributes_list)
+            .on_conflict_do_update(
+                index_elements=index_elements,
+                set_={col: getattr(insert(self.model_class).excluded, col) for col in attributes_list[0]},
+            )
+            .returning(self.model_class)
         )
-        await self.create_many(attributes_list)
+        result = await self.session.execute(stmt)
+
         if commit:
             await self.session.commit()
+        return result.scalars().all()
 
     async def count(self, where_: Optional[list] = None) -> int:
         """

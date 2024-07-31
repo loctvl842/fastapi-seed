@@ -1,4 +1,4 @@
-from typing import Any, Generic, Optional, Type, TypeVar
+from typing import Any, Generic, Optional, Sequence, Type, TypeVar
 
 from core.db import Base, Transactional
 from core.exceptions import NotFoundException
@@ -72,12 +72,20 @@ class BaseController(Generic[ModelType]):
         return create
 
     @Transactional()
-    async def create_many(self, attributes_list: list[dict[str, Any]]) -> list[ModelType]:
+    async def create_many(self, attributes_list: list[dict[str, Any]]) -> Sequence[ModelType]:
         """
         Create multiple objects in the DB.
         """
         creates = await self.repository.create_many(attributes_list)
         return creates
+
+    @Transactional()
+    async def upsert(self, index_elements: list[str], attributes: dict[str, Any]) -> Optional[ModelType]:
+        return await self.repository.upsert(index_elements, attributes)
+
+    @Transactional()
+    async def upsert_many(self, index_elements: list[str], attributes_list: list[dict[str, Any]]):
+        return await self.repository.upsert_many(index_elements, attributes_list)
 
     @Transactional()
     async def delete(self, model: ModelType) -> None:
