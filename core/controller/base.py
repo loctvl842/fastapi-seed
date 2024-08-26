@@ -42,6 +42,7 @@ class BaseController(Generic[ModelType]):
         limit: Optional[int] = None,
         join_: Optional[set[str]] = None,
         fields: Optional[list] = None,
+        distinct: Optional[list] = None,
         order_: Optional[dict] = None,
         where_: Optional[list] = None,
     ):
@@ -53,7 +54,7 @@ class BaseController(Generic[ModelType]):
         :param join_: The joins to make.
         :return: A list of records.
         """
-        response = await self.repository.get_many(skip, limit, fields, join_, order_, where_)
+        response = await self.repository.get_many(skip, limit, fields, distinct, join_, order_, where_)
         return response
 
     async def get_all(self, join_: set[str] | None = None) -> list[ModelType]:

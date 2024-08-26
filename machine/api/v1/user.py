@@ -54,14 +54,14 @@ async def upsert(
         return created_user
 
 
-@router.get("/", response_model=List[UserResponse])
+@router.get("/")
 async def list(
     user_controller: UserController = Depends(InternalProvider().get_user_controller),
 ):
     """
     List all users
     """
-    users = await user_controller.get_all()
+    users = await user_controller.get_many(distinct=[User.name])
     return users
 
 

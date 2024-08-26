@@ -1,7 +1,7 @@
 from functools import reduce
 from typing import Any, Dict, Generic, Optional, Sequence, Type, TypeVar
 
-from sqlalchemy import Select, delete, func, inspect, select
+from sqlalchemy import Select, delete, func, inspect, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,7 @@ class BaseRepository(Generic[ModelType]):
         skip: Optional[int] = None,
         limit: Optional[int] = None,
         fields: Optional[list] = None,
+        distinct_: Optional[list] = None,
         join_: set[str] | None = None,
         order_: dict | None = None,
         where_: Optional[list] = None,
@@ -41,6 +42,8 @@ class BaseRepository(Generic[ModelType]):
         if where_:
             for condition in where_:
                 query = query.where(condition)
+        if distinct_:
+            query = query.distinct(*distinct_)
 
         if skip is not None:
             query = query.offset(skip)
@@ -175,32 +178,25 @@ class BaseRepository(Generic[ModelType]):
             await self.session.commit()
         return created_instances
 
-    async def update(self, model_id: Any, attributes: Dict[str, Any], commit=False) -> ModelType:
+    async def update(self, where_: list[Any], attributes: Dict[str, Any], commit=False) -> ModelType:
         """
         Updates the model instance.
 
-        :param model_id: The ID of the model instance to update.
         :param attributes: The attributes to update the model with.
         :param commit: Whether to commit the changes to the database.
         :return: The updated model instance.
         """
-        # Fetch the existing model instance by ID
-        model = await self.session.get(self.model_class, model_id)
+        query = update(self.model_class)
+        for condition in where_:
+            query = query.where(condition)
+        query = query.values(**attributes).returning(self.model_class)
 
-        if not model:
-            raise ValueError(f"Model with id {model_id} not found")
-
-        # Update the model instance with the provided attributes
-        for key, value in attributes.items():
-            setattr(model, key, value)
-
-        # Add the model instance to the session (if not already added)
-        self.session.add(model)
-
+        result = await self.session.execute(query)
         if commit:
             await self.session.commit()
 
-        return model
+        return result.scalars().first()
+
 
     async def upsert(self, index_elements: list[str], attributes: Dict[str, Any], commit=False) -> Optional[ModelType]:
         """
@@ -281,6 +277,7 @@ class BaseRepository(Generic[ModelType]):
         skip: Optional[int] = None,
         limit: Optional[int] = None,
         fields: Optional[list] = None,
+        distinct_: Optional[list] = None,
         join_: Optional[set[str]] = None,
         order_: Optional[dict] = None,
         where_: Optional[list] = None,
@@ -294,7 +291,7 @@ class BaseRepository(Generic[ModelType]):
         :return: A list of records.
         """
 
-        query = self._query(skip=skip, limit=limit, fields=fields, join_=join_, order_=order_, where_=where_)
+        query = self._query(skip=skip, limit=limit, fields=fields, distinct_=distinct_, join_=join_, order_=order_, where_=where_)
         result = await self.session.scalars(query)
         return result.all()
 
