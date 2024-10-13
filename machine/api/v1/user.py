@@ -73,4 +73,4 @@ async def delete(
     """
     Delete a user
     """
-    return await user_controller.delete_many(where_=[User.id == id])
+    return await user_controller.delete(where_=[User.id == id])

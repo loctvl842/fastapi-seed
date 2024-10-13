@@ -1,3 +1,5 @@
+import re
+
 import toml
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
@@ -20,9 +22,8 @@ def root(request: Request):
         toml_content = f.read()
 
     toml_data = toml.loads(toml_content)
-    project_name = " ".join(
-        word.capitalize() for word in ut.dig(toml_data, "tool.poetry.name", "fastAPI_project").split("_")
-    )
+    project_name = ut.dig(toml_data, "tool.poetry.name", "fastAPI_project")
+    project_name = re.sub(r"[-_]", " ", project_name).title()
     authors = ut.dig(toml_data, "tool.poetry.authors", [])
 
     context = {"project_name": project_name, "authors": authors}

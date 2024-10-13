@@ -1,6 +1,6 @@
 import traceback
 from functools import reduce, wraps
-from typing import Any, Dict, Generic, Optional, Sequence, Type, TypeVar
+from typing import Any, Awaitable, Callable, Dict, Generic, Optional, ParamSpec, Sequence, Type, TypeVar
 
 from sqlalchemy import Select, delete, func, inspect, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -16,11 +16,16 @@ from .enum import SynchronizeSessionEnum
 
 ModelType = TypeVar("ModelType", bound=Base)
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
 
 def safeguard_db_ops():
-    def decorator(fn):
+    """A decorator to safeguard database operations and handle exceptions."""
+
+    def decorator(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @wraps(fn)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             try:
                 return await fn(*args, **kwargs)
             except SQLAlchemyError as e:
@@ -42,6 +47,7 @@ class BaseRepository(Generic[ModelType]):
     @safeguard_db_ops()
     async def _query(
         self,
+        *,
         skip: Optional[int] = None,
         limit: Optional[int] = None,
         fields: Optional[list] = None,
@@ -216,6 +222,7 @@ class BaseRepository(Generic[ModelType]):
     @safeguard_db_ops()
     async def count(
         self,
+        *,
         where_: Optional[list] = None,
         fields: Optional[list] = None,
         distinct_: Optional[list] = None,
@@ -276,7 +283,7 @@ class BaseRepository(Generic[ModelType]):
         return result.scalar_one()
 
     @safeguard_db_ops()
-    async def create(self, attributes: Optional[dict[str, Any]] = None, commit=False) -> ModelType:
+    async def create(self, attributes: Optional[dict[str, Any]] = None, *, commit=False) -> ModelType:
         """
         Creates and adds a new model instance to the database.
 

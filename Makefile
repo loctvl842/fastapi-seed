@@ -39,7 +39,15 @@ options:
 # Makefile commands
 
 .PHONY: run
-run: start
+run:
+	@make start-worker &
+	@make start
+
+start-worker: ## Start background workers
+	$(eval include .env)
+	$(eval export $(sh sed 's/=.*//' .env))
+	
+	poetry run dramatiq worker
 
 .PHONY: start
 start: ## Start the server
@@ -81,7 +89,7 @@ generate-migration: ## Generate a new migration
 	@echo -ne "\033[33mEnter migration message: \033[0m"
 	@read -r message; \
 	poetry run alembic revision --autogenerate -m "$$message"
-	@make lint migration
+	# @make lint migration
 
 # Code quality commands
 
@@ -99,3 +107,4 @@ check-format: ## Check format
 lint: ## Lint the code
 	poetry run black ./
 	poetry run ruff check --fix --select I --select W --select E
+

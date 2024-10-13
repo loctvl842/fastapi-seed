@@ -1,13 +1,17 @@
+import re
 from contextlib import asynccontextmanager
 
+import toml
 from fastapi import FastAPI, Request
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+import core.utils as ut
 from core.cache import Cache, DefaultKeyMaker, RedisBackend
 from core.exceptions import CustomException
 from core.fastapi.middlewares import SQLAlchemyMiddleware
+from core.logger import syslog
 from core.response import Error
 from core.settings import settings
 from machine.api import router
@@ -35,6 +39,20 @@ def init_listeners(app_: FastAPI) -> None:
 
 def init_cache() -> None:
     Cache.configure(backend=RedisBackend(), key_maker=DefaultKeyMaker())
+
+
+def init_sentry() -> None:
+    try:
+        if ut.has("sentry_sdk"):
+            import sentry_sdk
+
+            sentry_sdk.init(
+                dsn=settings.SENTRY_DSN,
+                traces_sample_rate=1.0,
+                profiles_sample_rate=1.0,
+            )
+    except Exception as e:
+        syslog.error(f"Failed to initialize Sentry SDK: {e}")
 
 
 def make_middleware() -> list[Middleware]:
@@ -74,13 +92,21 @@ async def lifespan(app: FastAPI):
 
 
 def create_machine() -> FastAPI:
+    with open("pyproject.toml", "r") as f:
+        toml_content = f.read()
+
+    toml_data = toml.loads(toml_content)
+    project_name = ut.dig(toml_data, "tool.poetry.name", "fastAPI_project")
+    project_name = re.sub(r"[-_]", " ", project_name).title()
+    project_description = ut.dig(toml_data, "tool.poetry.description", "fastAPI_project")
+
     app_ = FastAPI(
-        title="FastAPI Seed",
-        description="Trading Logic API",
+        title=project_name,
+        description=project_description,
         version="0.0.1",
         root_path="/api",
-        docs_url=None if settings.ENV == "production" else "/docs",
-        redoc_url=None if settings.ENV == "production" else "/redoc",
+        docs_url="/docs",
+        redoc_url="/redoc",
         middleware=make_middleware(),
         lifespan=lifespan,
     )
@@ -88,6 +114,7 @@ def create_machine() -> FastAPI:
     init_routers(app_)
     init_listeners(app_=app_)
     init_cache()
+    init_sentry()
     return app_
 
 
