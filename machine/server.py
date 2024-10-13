@@ -75,9 +75,10 @@ async def lifespan(app: FastAPI):
 
 def create_machine() -> FastAPI:
     app_ = FastAPI(
-        title="Trading Logic",
+        title="FastAPI Seed",
         description="Trading Logic API",
         version="0.0.1",
+        root_path="/api",
         docs_url=None if settings.ENV == "production" else "/docs",
         redoc_url=None if settings.ENV == "production" else "/redoc",
         middleware=make_middleware(),

@@ -2,6 +2,7 @@ import toml
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
+import core.utils as ut
 from machine.api.ping import router as ping_router
 from machine.api.v1 import router as router_v1
 from machine.api.v2 import router as router_v2
@@ -19,8 +20,10 @@ def root(request: Request):
         toml_content = f.read()
 
     toml_data = toml.loads(toml_content)
-    project_name = toml_data.get("project", {}).get("name", "FastAPI Project")
-    authors = toml_data.get("project", {}).get("authors", [])
+    project_name = " ".join(
+        word.capitalize() for word in ut.dig(toml_data, "tool.poetry.name", "fastAPI_project").split("_")
+    )
+    authors = ut.dig(toml_data, "tool.poetry.authors", [])
 
     context = {"project_name": project_name, "authors": authors}
 

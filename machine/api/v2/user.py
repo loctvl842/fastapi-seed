@@ -23,7 +23,7 @@ async def create(
 async def list(
     user_controller: UserController = Depends(InternalProvider().get_user_controller),
 ):
-    users = await user_controller.get_all()
+    users = await user_controller.get_many()
     return users
 
 

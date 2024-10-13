@@ -57,10 +57,6 @@ class BaseController(Generic[ModelType]):
         response = await self.repository.get_many(skip, limit, fields, distinct, join_, order_, where_)
         return response
 
-    async def get_all(self, join_: set[str] | None = None) -> list[ModelType]:
-        response = await self.repository.get_all(join_)
-        return response
-
     @Transactional()
     async def create(self, attributes: dict[str, Any]) -> ModelType:
         """

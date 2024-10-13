@@ -8,8 +8,13 @@ class CoreSettings(BaseSettings):
     ENV: Literal["development", "production"] = "development"
     DEBUG: bool = True
     APP_HOST: str = "0.0.0.0"
-    APP_PORT: int = 5000
+    APP_PORT: int = 8080
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARN", "ERROR", "FATAL"] = "DEBUG"
+
+
+class TestSettings(BaseSettings):
+    PYTEST: bool = False
+    PYTEST_UNIT: bool = False
 
 
 class DatabaseSettings(BaseSettings):
@@ -21,7 +26,12 @@ class RedisSettings(BaseSettings):
     REDIS_URL: str = "redis://127.0.0.1:6379/0"
 
 
-class Settings(CoreSettings, DatabaseSettings, RedisSettings): ...
+class Settings(
+    CoreSettings,
+    TestSettings,
+    DatabaseSettings,
+    RedisSettings,
+): ...
 
 
 class DevelopmentSettings(Settings): ...
