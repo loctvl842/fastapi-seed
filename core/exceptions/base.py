@@ -1,5 +1,7 @@
 from http import HTTPStatus
 
+import core.utils as ut
+
 
 class CustomException(Exception):
     code = HTTPStatus.BAD_GATEWAY
@@ -7,8 +9,12 @@ class CustomException(Exception):
     message = HTTPStatus.BAD_GATEWAY.description
 
     def __init__(self, message=None):
-        if message:
-            self.message = message
+        self.message = message or self.message
+        super().__init__(self.message)
+        if ut.has("sentry_sdk"):
+            import sentry_sdk
+
+            sentry_sdk.capture_exception(self)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.message})"
