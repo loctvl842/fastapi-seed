@@ -3,61 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ project_name }}</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        background-color: #f4f4f4;
-      }
-
-      .container {
-        text-align: center;
-      }
-
-      h1 {
-        font-size: 2.5rem;
-        margin-bottom: 20px;
-      }
-
-      .api-link {
-        display: block;
-        margin-bottom: 10px;
-        color: #007bff;
-        text-decoration: none;
-      }
-
-      .api-link:hover {
-        text-decoration: underline;
-      }
-
-      footer {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        background-color: #333;
-        color: #fff;
-        text-align: center;
-        padding: 10px 0;
-      }
-    </style>
+    <title>{{ project_name }} - API</title>
+    <link rel="shortcut icon" href="{{root_path}}/static/favicon.svg" type="image/svg+xml" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="stylesheet" href="{{root_path}}/static/style.css" />
   </head>
   <body>
+    <!-- Header Section -->
+    <header class="header-container">
+      <a href="/" title="Refresh Page">
+        <img src="{{root_path}}/static/favicon.svg" alt="{{ project_name }} Logo" class="logo" />
+      </a>
+      {% for sub_app in sub_apps %}
+      <a class="header-item" href="{{ sub_app.root_path }}">
+        <i class="fas fa-layer-group" style="color: #17a2b8; margin-right: 10px"></i>
+        {{ sub_app.title }}
+      </a>
+      {% endfor %}
+    </header>
+
+    <!-- Main Content Container -->
     <div class="container">
       <h1>Welcome to {{ project_name }}</h1>
-      <div>
-        <a class="api-link" href="/ping">Check Health (Ping API)</a>
-        <a class="api-link" href="/docs">API Documentation (Swagger)</a>
-        <a class="api-link" href="/redoc">API Documentation (Redoc)</a>
+      <div style="display: flex; flex-direction: column">
+        <a class="api-link" href="{{root_path}}/ping"
+          ><i class="fas fa-heartbeat" style="color: #ff0000; margin-right: 10px"></i> Check Health (Ping API)</a
+        >
+        <a class="api-link" href="{{root_path}}/docs"
+          ><i class="fas fa-book" style="color: #007bff; margin-right: 10px"></i> API Documentation (Swagger)</a
+        >
+        <a class="api-link" href="{{root_path}}/redoc"
+          ><i class="fas fa-book" style="color: #0d6efd; margin-right: 10px"></i> API Documentation (Redoc)</a
+        >
       </div>
     </div>
-    <footer>
-      &copy; 2024 {{ project_name }} | Created by {{ ', '.join(authors) }}
-    </footer>
+
+    <!-- Footer Section -->
+    <footer>&copy; 2024 {{ project_name }} | Created by {{ ', '.join(authors) }}</footer>
   </body>
 </html>
+

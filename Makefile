@@ -36,75 +36,24 @@ options:
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' | sort
 
-# Makefile commands
 
-.PHONY: run
-run:
-	@make start-worker &
-	@make start
-
-start-worker: ## Start background workers
-	$(eval include .env)
-	$(eval export $(sh sed 's/=.*//' .env))
-	
-	poetry run dramatiq worker
+### Development
 
 .PHONY: start
 start: ## Start the server
-	$(eval include .env)
-	$(eval export $(sh sed 's/=.*//' .env))
+	FASTAPI_ENV=development uv run python -m main
 
-	poetry run python main.py
 
-.PHONY: cli
-cli: ## Start the CLI
-	$(eval include .env)
-	$(eval export $(shell sed 's/=.*//' .env))
-	poetry run python cli.py $(filter-out $@,$(MAKECMDGOALS))
+### Code quality
 
-%:
-	@true
+.PHONY: fix-lint
+lint-fix: ## Auto-fix linting issues where possible
+	uv run ruff check --fix .
 
-# Database commands
-
-.PHONY: migrate
-migrate: ## Run the migrations
-	$(eval include .env)
-	$(eval export $(sh sed 's/=.*//' .env))
-
-	poetry run alembic upgrade head
-
-.PHONY: rollback
-rollback: ## Rollback the migrations
-	$(eval include .env)
-	$(eval export $(sh sed 's/=.*//' .env))
-
-	poetry run alembic downgrade -1
-
-.PHONY: generate-migration
-generate-migration: ## Generate a new migration
-	$(eval include .env)
-	$(eval export $(sh sed 's/=.*//' .env))
-
-	@echo -ne "\033[33mEnter migration message: \033[0m"
-	@read -r message; \
-	poetry run alembic revision --autogenerate -m "$$message"
-	# @make lint migration
-
-# Code quality commands
-
-.PHONY: check
-check: ## Check and lint the code
-	@make check-format
-	@make lint
-
-.PHONY: check-format
-check-format: ## Check format
-	-poetry run black ./ --check
-	-poetry run ruff check --select I --select W --select E
+.PHONE: format
+format: ## Format the code
+	uv run ruff format .
 
 .PHONY: lint
-lint: ## Lint the code
-	poetry run black ./
-	poetry run ruff check --fix --select I --select W --select E
-
+lint: ## Check code for style and error issues
+	uv run ruff check .
